@@ -7,10 +7,20 @@ data PathPattern = Literal String | Capture String deriving (Eq, Show)
 
 data Routes f = Route [PathPattern] f | Scope [PathPattern] (Routes f) | Many [Routes f] deriving Show
 
--- Ejercicio 1: Dado un elemento separador y una lista, se deber a partir la lista en sublistas de acuerdo a la aparicíon del separador (sin incluirlo).
+-- Ejercicio 1: Dado un elemento separador y una lista, se debera partir la lista en sublistas de acuerdo a la aparicíon del separador (sin incluirlo).
+
+limpiar :: Eq a => [[a]] -> [[a]]
+limpiar []     = []
+limpiar (x:xs) = if (x == []) then (limpiar xs) else x:(limpiar xs)
+
 
 split :: Eq a => a -> [a] -> [[a]]
-split d = undefined
+split n []     = [[]]
+split n (x:xs) = if (n/=x) then (\yss -> (x:head yss):(tail yss)) (split n xs)
+                 else [[]] ++ (split n xs)
+
+split' :: Eq a => a -> [a] -> [[a]]
+split' n xs = limpiar ((split n) xs)
 
 -- Ejercicio 2: A partir de una cadena que denota un patrón de URL se deberá construir la secuencia de literales y capturas correspondiente.
 pattern :: String -> [PathPattern]
