@@ -9,28 +9,24 @@ data Routes f = Route [PathPattern] f | Scope [PathPattern] (Routes f) | Many [R
 
 -- Ejercicio 1: Dado un elemento separador y una lista, se debera partir la lista en sublistas de acuerdo a la aparicíon del separador (sin incluirlo).
 
-limpiar :: Eq a => [[a]] -> [[a]]
-limpiar []     = []
-limpiar (x:xs) = if (x == []) then (limpiar xs) else x:(limpiar xs)
-
-
 split :: Eq a => a -> [a] -> [[a]]
-split n []     = [[]]
-split n (x:xs) = if (n/=x) then (\yss -> (x:head yss):(tail yss)) (split n xs)
-                 else [[]] ++ (split n xs)
-
-split' :: Eq a => a -> [a] -> [[a]]
-split' n xs = limpiar ((split n) xs)
+split n = foldr (\x r -> if (n/=x) then (\yss -> (x:head yss):(tail yss)) r
+                                   else [[]] ++ r) [[]]
 
 -- Ejercicio 2: A partir de una cadena que denota un patrón de URL se deberá construir la secuencia de literales y capturas correspondiente.
+
+limpiar :: Eq a => [[a]] -> [[a]]
+limpiar = foldr (\x r -> if x==[] then r else x:r) []
+
 pattern :: String -> [PathPattern]
-pattern = undefined
+pattern path = (foldr (\x r -> if ((not (null x)) && (head x) == ':') then (Capture (tail x)):r 
+                               else (Literal x):r) []) (limpiar (split '/' path))
 
 -- Ejercicio 3: Obtiene el valor registrado en una captura determinada. Se puede suponer que la captura está definida en el contexto.
 type PathContext = [(String, String)]
 
 get :: String -> PathContext -> String
-get s = undefined
+get s = foldr (\(key,value) r -> if key==s then value else r) s
 
 -- Ejercicio 4: Dadas una ruta particionada y un patrón de URL, trata de aplicar el patrón a la ruta y devuelve, en caso de que
 --              la ruta sea un prefijo válido para el patrón, el resto de la ruta que no se haya llegado a consumir y el contexto capturado hasta el punto alcanzado.
