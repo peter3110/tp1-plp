@@ -108,13 +108,17 @@ Nota: la siguiente función viene definida en el módulo Data.Maybe.
 --        _ ii)  
 --        _ iii) tengo una lista de respuestas. si alguna matchea con s, tomo esa respuesta. Si no, devuelvo Nothing
 
--- > Problema : tuve que agregar la condicion "Eq a" en eval porque si no, no puedo chequear que (x s) /= Nothing en "analizarLista"
+analizarLista :: String -> [String -> Maybe (a,PathContext)] -> Maybe (String -> Maybe (a,PathContext))
+analizarLista s = foldr (\x r -> if isNothing (x s) then r else Just x) Nothing
 
-analizarLista :: Eq a => String -> [String -> Maybe (a,PathContext)] -> Maybe (String -> Maybe (a,PathContext))
-analizarLista s = foldr (\x r -> if (x s) /= Nothing then Just x else r) Nothing
+matchean :: [String] -> [String] -> Bool
+matchean _ []        = True
+matchean [] _         = True
+matchean (x:xs) (y:ys) = if (head x == ':' || x==y) then (matchean xs ys) else False
 
-eval :: Eq a => Routes a -> String -> Maybe (a, PathContext)
-eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> if (split '/' s)==[patternShow xs] then Just (f, y) else Nothing) =<< (matches [patternShow xs] xs))
+eval :: Routes a -> String -> Maybe (a, PathContext)
+eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> if matchean (split '/' (patternShow xs)) (split '/' s) 
+                                              then Just (f, y) else Nothing) =<< (matches (split '/' s) xs))
                   (\xs r  -> \s -> Nothing)
                   (\lr    -> \s -> (\recCumple -> recCumple s) =<< (analizarLista s lr))
 
