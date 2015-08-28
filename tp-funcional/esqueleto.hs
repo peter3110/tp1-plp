@@ -19,7 +19,8 @@ limpiar :: Eq a => [[a]] -> [[a]]
 limpiar = foldr (\x r -> if x==[] then r else x:r) []
 
 pattern :: String -> [PathPattern]
-pattern path = (foldr (\x r -> if ((not (null x)) && (head x) == ':') then (Capture (tail x)):r 
+pattern path = if path == "" then [Literal ""] else
+               (foldr (\x r -> if ((not (null x)) && (head x) == ':') then (Capture (tail x)):r 
                                else (Literal x):r) []) (limpiar (split '/' path))
 
 -- Ejercicio 3: Obtiene el valor registrado en una captura determinada. Se puede suponer que la captura está definida en el contexto.
@@ -32,9 +33,21 @@ get s = foldr (\(key,value) r -> if key==s then value else r) s
 --              la ruta sea un prefijo válido para el patrón, el resto de la ruta que no se haya llegado a consumir y el contexto capturado hasta el punto alcanzado.
 -- Se puede usar recursión explícita.
 
-matches :: [String] -> [PathPattern] -> Maybe ([String], PathContext)
-matches ss ps = undefined
+-- unir : agrega adelante del resultado final del procesamiento de una ruta 
+--        el resultado de haber procesado un elemento de la ruta
+unir :: PathContext -> Maybe ([String], PathContext) -> Maybe ([String], PathContext)
+unir pc Nothing = Nothing
+unir pc (Just (ss,xs)) = Just (ss,pc++xs)
 
+-- matches : asumimos que si el PathContext tiene pide mas informacion de la que la ruta
+--           nos puede brindar, devolvemos Nothing. A los literales y capturas los consumimos, y
+--           solo que a las capturas ademas las procesamos y agregamos adelante en el resultado final.
+--           (Se permite usar recursion explicita)
+matches :: [String] -> [PathPattern] -> Maybe ([String], PathContext)
+matches ss [] = Just (ss, [])
+matches [] xs = Nothing
+matches (s:ss) ((Literal x):xs) = if s==x then (matches ss xs) else Nothing
+matches (s:ss) ((Capture x):xs) = unir [(x,s)] (matches ss xs)
 
 -- DSL para rutas
 route :: String -> a -> Routes a
@@ -47,7 +60,14 @@ many :: [Routes a] -> Routes a
 many l = Many l
 
 -- Ejercicio 5: Definir el fold para el tipo Routes f y su tipo. Se puede usar recursión explícita.
-foldRoutes = undefined
+-- Routes f = Route [PathPattern] f | Scope [PathPattern] (Routes f) | Many [Routes f]
+foldRoutes :: ([PathPattern] -> b -> c) -> ([PathPattern] -> c -> c) -> ([c] -> c) -> Routes b -> c
+foldRoutes fRoute fScope fMany route = case route of
+    Route xs f          -> fRoute xs f 
+    Scope xs rutas      -> fScope xs (rec $ rutas)
+    Many  listaRutas    -> fMany (map rec listaRutas)
+    where rec = foldRoutes fRoute fScope fMany
+
 
 -- Auxiliar para mostrar patrones. Es la inversa de pattern.
 patternShow :: [PathPattern] -> String
@@ -56,9 +76,19 @@ patternShow ps = concat $ intersperse "/" ((map (\p -> case p of
   Capture s -> (':':s)
   )) ps)
 
+rutasFacultad = many [
+                route "" "ver inicio",
+                route "ayuda" "ver ayuda",
+                scope "materia/:nombre/alu/:lu" $ many [
+                        route "inscribir" "inscribe alumno", 
+                        route "aprobar"   "aprueba alumno"],
+                route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]     
+
+
 -- Ejercicio 6: Genera todos los posibles paths para una ruta definida.
 paths :: Routes a -> [String]
-paths = undefined
+paths = foldRoutes (\xs f -> [patternShow xs]) (\xs r -> map (((patternShow xs)++"/")++) r) 
+                   (\xs -> concat xs)
 
 -- Ejercicio 7: Evalúa un path con una definición de ruta y, en caso de haber coincidencia, obtiene el handler correspondiente 
 --              y el contexto de capturas obtenido.
