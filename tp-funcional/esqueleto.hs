@@ -63,9 +63,9 @@ many l = Many l
 -- Routes f = Route [PathPattern] f | Scope [PathPattern] (Routes f) | Many [Routes f]
 foldRoutes :: ([PathPattern] -> b -> c) -> ([PathPattern] -> c -> c) -> ([c] -> c) -> Routes b -> c
 foldRoutes fRoute fScope fMany route = case route of
-    Route xs f          -> fRoute xs f 
-    Scope xs rutas      -> fScope xs (rec $ rutas)
-    Many  listaRutas    -> fMany (map rec listaRutas)
+    Route xs f  -> fRoute xs f 
+    Scope xs r  -> fScope xs (rec $ r)
+    Many  lr    -> fMany (map rec lr)
     where rec = foldRoutes fRoute fScope fMany
 
 
@@ -82,7 +82,12 @@ rutasFacultad = many [
                 scope "materia/:nombre/alu/:lu" $ many [
                         route "inscribir" "inscribe alumno", 
                         route "aprobar"   "aprueba alumno"],
-                route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]     
+                route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]  
+
+rutasFac      =  many [
+                  route "" "ver inicio",
+                  route "ayuda" "ver ayuda",
+                  route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]
 
 
 -- Ejercicio 6: Genera todos los posibles paths para una ruta definida.
@@ -97,8 +102,21 @@ Nota: la siguiente función viene definida en el módulo Data.Maybe.
  (=<<) :: (a->Maybe b)->Maybe a->Maybe b
  f =<< m = case m of Nothing -> Nothing; Just x -> f x
 -}
-eval :: Routes a -> String -> Maybe (a, PathContext)
-eval = undefined
+
+-- Notas: _ [patternShow xs] es para pasar de lista de PathPattern a lista de String (sacar Literal y Capture)
+--        _ i)   solo en caso de que el String matchee exactamente con la ruta, devolemos la funcion f que corresponde a esa ruta (que es completa)
+--        _ ii)  
+--        _ iii) tengo una lista de respuestas. si alguna matchea con s, tomo esa respuesta. Si no, devuelvo Nothing
+
+-- > Problema : tuve que agregar la condicion "Eq a" en eval porque si no, no puedo chequear que (x s) /= Nothing en "analizarLista"
+
+analizarLista :: Eq a => String -> [String -> Maybe (a,PathContext)] -> Maybe (String -> Maybe (a,PathContext))
+analizarLista s = foldr (\x r -> if (x s) /= Nothing then Just x else r) Nothing
+
+eval :: Eq a => Routes a -> String -> Maybe (a, PathContext)
+eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> if (split '/' s)==[patternShow xs] then Just (f, y) else Nothing) =<< (matches [patternShow xs] xs))
+                  (\xs r  -> \s -> Nothing)
+                  (\lr    -> \s -> (\recCumple -> recCumple s) =<< (analizarLista s lr))
 
 
 -- Ejercicio 8: Similar a eval, pero aquí se espera que el handler sea una función que recibe como entrada el contexto 
