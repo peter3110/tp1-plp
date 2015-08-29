@@ -108,13 +108,16 @@ Nota: la siguiente función viene definida en el módulo Data.Maybe.
 --        _ ii)  
 --        _ iii) tengo una lista de respuestas. si alguna matchea con s, tomo esa respuesta. Si no, devuelvo Nothing
 
+-- analizarLista : estamos generando una funcion [c] -> c (c es el tipo de la rta que buscamos), donde nos fijamos si alguna de las 
+--                 recursiones sobre los elementos de la lista  devuelve un valor distinto que Nothing. Devolvemos el 1ro que encontramos.
 analizarLista :: String -> [String -> Maybe (a,PathContext)] -> Maybe (String -> Maybe (a,PathContext))
 analizarLista s = foldr (\x r -> if isNothing (x s) then r else Just x) Nothing
 
+-- matchean : se fija que (ejemplo) alu/:lu/:nombre matchee con alu/197-12/pedro pero no con prof/:lu/:nombre. Es decir, todos los que
+--            sean literales tienen que matchear exactamente, mientras que en las capturas se permite que se introduzcan otro valor.
 matchean :: [String] -> [String] -> Bool
-matchean _ []        = True
-matchean [] _         = True
-matchean (x:xs) (y:ys) = if (head x == ':' || x==y) then (matchean xs ys) else False
+matchean xs ys = (length xs == length ys) && 
+                 (foldr (\x r -> (head (fst x) == ':' || (fst x == snd x)) && r) True) (zipWith (\x y -> (x,y)) xs ys)
 
 eval :: Routes a -> String -> Maybe (a, PathContext)
 eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> if matchean (split '/' (patternShow xs)) (split '/' s) 
