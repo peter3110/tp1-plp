@@ -80,14 +80,17 @@ rutasFacultad = many [
                 route "" "ver inicio",
                 route "ayuda" "ver ayuda",
                 scope "materia/:nombre/alu/:lu" $ many [
+                        route "inscribir" "inscribe alumno 1", 
+                        route "aprobar/:nota"   "aprueba alumno 1"],
+                scope "materia2" $ many [
                         route "inscribir" "inscribe alumno", 
-                        route "aprobar"   "aprueba alumno"],
-                route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]  
+                        route "aprobar/:nota"   "aprueba alumno 2"],
+                route "alu/:lu/aprobadas" "ver materias aprobadas por alumno 2" ]
 
 rutasFac      =  many [
                   route "" "ver inicio",
                   route "ayuda" "ver ayuda",
-                  route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]
+                  route "alu/:lu/:edad/aprobadas" "ver materias aprobadas por alumno" ]
 
 
 -- Ejercicio 6: Genera todos los posibles paths para una ruta definida.
@@ -110,20 +113,29 @@ Nota: la siguiente función viene definida en el módulo Data.Maybe.
 
 -- analizarLista : estamos generando una funcion [c] -> c (c es el tipo de la rta que buscamos), donde nos fijamos si alguna de las 
 --                 recursiones sobre los elementos de la lista  devuelve un valor distinto que Nothing. Devolvemos el 1ro que encontramos.
-analizarLista :: String -> [String -> Maybe (a,PathContext)] -> Maybe (String -> Maybe (a,PathContext))
-analizarLista s = foldr (\x r -> if isNothing (x s) then r else Just x) Nothing
 
--- matchean : se fija que (ejemplo) alu/:lu/:nombre matchee con alu/197-12/pedro pero no con prof/:lu/:nombre. Es decir, todos los que
---            sean literales tienen que matchear exactamente, mientras que en las capturas se permite que se introduzcan otro valor.
-matchean :: [String] -> [String] -> Bool
-matchean xs ys = (length xs == length ys) && 
-                 (foldr (\x r -> (head (fst x) == ':' || (fst x == snd x)) && r) True) (zipWith (\x y -> (x,y)) xs ys)
+-- r :: String -> Maybe (a, PathContext)
+
+unirConBarra :: [String] -> String
+unirConBarra []     = ""
+unirConBarra [x]    = x
+unirConBarra (x:xs) = x ++ "/" ++ (unirConBarra xs)
+
+modificar :: [PathPattern] -> String -> String
+modificar [] s = s
+modificar (Literal x:xs) s = modificar xs (unirConBarra ((\y ys -> if (head ys == x) then tail ys else ys) x (split '/' s)))
+modificar (Capture x:xs) s = modificar xs (unirConBarra ((\y ys -> tail ys) x (split '/' s)))
+
+procesar :: [PathPattern] -> String -> PathContext
+procesar [] s   = []
+procesar (Literal x:xs) s = procesar xs (unirConBarra (tail (split '/' s)))
+procesar (Capture x:xs) s = ([(x,head listaS)] ++ (procesar xs (unirConBarra (tail listaS)))) where listaS = (split '/' s)
 
 eval :: Routes a -> String -> Maybe (a, PathContext)
-eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> if matchean (split '/' (patternShow xs)) (split '/' s) 
-                                              then Just (f, y) else Nothing) =<< (matches (split '/' s) xs))
-                  (\xs r  -> \s -> Nothing)
-                  (\lr    -> \s -> (\recCumple -> recCumple s) =<< (analizarLista s lr))
+eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> Just (f,y)) =<< (matches (split '/' s) xs))
+                  (\xs r  -> \s -> (\(x,y) -> Just (x,(procesar xs s)++y)) =<< r (modificar xs s))
+                  (\lr    -> \s -> (\recOk -> recOk s) =<<
+                                     (foldr (\x r -> if isNothing (x s) then r else Just x) Nothing) lr)
 
 
 -- Ejercicio 8: Similar a eval, pero aquí se espera que el handler sea una función que recibe como entrada el contexto 
