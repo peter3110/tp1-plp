@@ -81,10 +81,10 @@ rutasFacultad = many [
                 route "ayuda" "ver ayuda",
                 scope "materia/:nombre/alu/:lu" $ many [
                         route "inscribir" "inscribe alumno 1", 
-                        route "aprobar/:nota"   "aprueba alumno 1"],
+                        route "aprobar1/:nota"   "aprueba alumno 1"],
                 scope "materia2" $ many [
                         route "inscribir" "inscribe alumno", 
-                        route "aprobar/:nota"   "aprueba alumno 2"],
+                        route "aprobar2/:nota"   "aprueba alumno 2"],
                 route "alu/:lu/aprobadas" "ver materias aprobadas por alumno 2" ]
 
 rutasFac      =  many [
@@ -111,31 +111,32 @@ Nota: la siguiente función viene definida en el módulo Data.Maybe.
 --        _ ii)  
 --        _ iii) tengo una lista de respuestas. si alguna matchea con s, tomo esa respuesta. Si no, devuelvo Nothing
 
--- analizarLista : estamos generando una funcion [c] -> c (c es el tipo de la rta que buscamos), donde nos fijamos si alguna de las 
---                 recursiones sobre los elementos de la lista  devuelve un valor distinto que Nothing. Devolvemos el 1ro que encontramos.
-
 -- r :: String -> Maybe (a, PathContext)
 
 unirConBarra :: [String] -> String
-unirConBarra []     = ""
-unirConBarra [x]    = x
-unirConBarra (x:xs) = x ++ "/" ++ (unirConBarra xs)
+unirConBarra = foldr (\x r -> if r=="" then x else x ++ "/" ++ r) ""
 
+-- modificar px sy = la porcion aun no consumida de sy tras haber consumido todo lo de px posible
+--                   Si no se pudo consumir todo px, devuelve "". Y si no se puede consumir nada de px, devuelve sy
+-- Problema : s varia. Como hago para no usar recursion explicita?
 modificar :: [PathPattern] -> String -> String
 modificar [] s = s
-modificar (Literal x:xs) s = modificar xs (unirConBarra ((\y ys -> if (head ys == x) then tail ys else ys) x (split '/' s)))
+modificar _ "" = ""
+modificar (Literal x:xs) s = if x==head(split '/' s) then modificar xs (unirConBarra (tail (split '/' s))) else s
 modificar (Capture x:xs) s = modificar xs (unirConBarra ((\y ys -> tail ys) x (split '/' s)))
 
+-- procesar px sy = los datos obtenidos de px tras recorrer lo maximo posible de sy
 procesar :: [PathPattern] -> String -> PathContext
 procesar [] s   = []
 procesar (Literal x:xs) s = procesar xs (unirConBarra (tail (split '/' s)))
 procesar (Capture x:xs) s = ([(x,head listaS)] ++ (procesar xs (unirConBarra (tail listaS)))) where listaS = (split '/' s)
 
+
 eval :: Routes a -> String -> Maybe (a, PathContext)
 eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> Just (f,y)) =<< (matches (split '/' s) xs))
-                  (\xs r  -> \s -> (\(x,y) -> Just (x,(procesar xs s)++y)) =<< r (modificar xs s))
-                  (\lr    -> \s -> (\recOk -> recOk s) =<<
-                                     (foldr (\x r -> if isNothing (x s) then r else Just x) Nothing) lr)
+                  (\xs r  -> \s -> (\(x,y) -> if modificar xs s == s then Nothing 
+                                              else Just (x,(procesar xs s)++y)) =<< r (modificar xs s))
+                  (\lr    -> \s -> (\recOk -> recOk s) =<< (foldr (\x r -> if isNothing (x s) then r else Just x) Nothing) lr)
 
 
 -- Ejercicio 8: Similar a eval, pero aquí se espera que el handler sea una función que recibe como entrada el contexto 
