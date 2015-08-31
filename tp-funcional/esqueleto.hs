@@ -80,12 +80,10 @@ rutasFacultad = many [
                 route "" "ver inicio",
                 route "ayuda" "ver ayuda",
                 scope "materia/:nombre/alu/:lu" $ many [
-                        route "inscribir" "inscribe alumno 1", 
-                        route "aprobar1/:nota"   "aprueba alumno 1"],
-                scope "materia2" $ many [
                         route "inscribir" "inscribe alumno", 
-                        route "aprobar2/:nota"   "aprueba alumno 2"],
-                route "alu/:lu/aprobadas" "ver materias aprobadas por alumno 2" ]
+                        route "aprobar/:nota"   "aprueba alumno",
+                        scope "detener/:causa" (route "castigo" "aplicar castigo ejemplar")],
+                route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]
 
 rutasFac      =  many [
                   route "" "ver inicio",
@@ -106,31 +104,45 @@ Nota: la siguiente función viene definida en el módulo Data.Maybe.
  f =<< m = case m of Nothing -> Nothing; Just x -> f x
 -}
 
--- Notas: _ [patternShow xs] es para pasar de lista de PathPattern a lista de String (sacar Literal y Capture)
---        _ i)   solo en caso de que el String matchee exactamente con la ruta, devolemos la funcion f que corresponde a esa ruta (que es completa)
---        _ ii)  
---        _ iii) tengo una lista de respuestas. si alguna matchea con s, tomo esa respuesta. Si no, devuelvo Nothing
-
--- r :: String -> Maybe (a, PathContext)
-
+-- modificar px sy = modifica sy en funcion de px. Devuelve la porcion aun no consumida del string sy tras haber consumido 
+--                   todo lo del pattern px posible 
+--                   Si no se pudo consumir todo px, devuelve "". Y si no se puede consumir nada de px, devuelve sy.
+--                   res es una lista de tuplas. Si el primer elemento de la tupla es "/" es porque en el pattern px
+--                   se encontro un Literal no coincidente con su elemento correspondiente del string sy. Este va a ser el
+--                   punto en el que querremos cortar al string sy y devolver el substring que nos queda. Es con este fin que
+--                   aplicamos una funcion que procesa esta lista de tuplas y el string original sy, detecta (si es que lo hay)
+--                   el punto en el que debe cortar el string sy, y devuelve el substring deseado.
+--                   - (observacion: si modificar xs s == s, quiere decir que el pattern xs no nos
+--                   permite consumir correctamente el string s --> el path a ser considerado -s- no matchea con el subpath propuesto -en
+--                   este caso representado en forma de "pattern"- por xs). -
 unirConBarra :: [String] -> String
 unirConBarra = foldr (\x r -> if r=="" then x else x ++ "/" ++ r) ""
 
--- modificar px sy = la porcion aun no consumida de sy tras haber consumido todo lo de px posible
---                   Si no se pudo consumir todo px, devuelve "". Y si no se puede consumir nada de px, devuelve sy
--- Problema : s varia. Como hago para no usar recursion explicita?
 modificar :: [PathPattern] -> String -> String
-modificar [] s = s
-modificar _ "" = ""
-modificar (Literal x:xs) s = if x==head(split '/' s) then modificar xs (unirConBarra (tail (split '/' s))) else s
-modificar (Capture x:xs) s = modificar xs (unirConBarra ((\y ys -> tail ys) x (split '/' s)))
+modificar xs s = unirConBarra $ (foldr (\x r -> \ys -> if (fst x=="/") then ys else r (tail ys)) (\ys -> ys)) res (split '/' s)
+  where res = (zipWith (\px y -> case px of
+                Literal x -> if x/=y then ("/",y) else ("//",y)
+                Capture x -> (x,y)) xs listaS) where listaS = split '/' s
 
--- procesar px sy = los datos obtenidos de px tras recorrer lo maximo posible de sy
+-- procesar px sy = los datos obtenidos del pattern px tras consumir lo maximo posible del string sy (que es un path).
+--                  res es una lista de tuplas, y devolvemos ("/","/") cuando hay algun Literal de px que no se corresponde
+--                  correctamente con su pareja correspondiente del string sy. Si esto sucede, entonces seguro que px no se corresponde
+--                  con ningun prefijo del path sy, en cuyo caso no querremos agregar ningun dato que pudiera haber sido levantado 
+--                  por sy de px y por eso devolvemos [].
+--                  Si en cambio todos los Literales coinciden de forma exacta, devolvemos (para ser agregados al PathContext), todos los
+--                  datos que se pueden levantar del path sy a partir de px.
 procesar :: [PathPattern] -> String -> PathContext
-procesar [] s   = []
-procesar (Literal x:xs) s = procesar xs (unirConBarra (tail (split '/' s)))
-procesar (Capture x:xs) s = ([(x,head listaS)] ++ (procesar xs (unirConBarra (tail listaS)))) where listaS = (split '/' s)
+procesar xs s = if elem ("/","/") res then [] else (foldr (\x r -> if x==("//","//") then r else x:r) []) res
+  where res = (zipWith (\px y -> case px of
+                Literal x -> if x/=y then ("/","/") else ("//","//")                -- pedimos x==y
+                Capture x -> (x,y)) xs listaS) where listaS = split '/' s           -- no pedimos nada
 
+-- eval : caso Route [PathPattern] f : solo en caso de que el path considerado matchee exactamente con la ruta, devolemos la funcion 
+--             f que corresponde a esa ruta (que es completa)
+--        caso Scope [PathPattern] (Routes f) : si el path a ser considerado matchea con el subpath que propone Scope (sobre cierta Ruta),
+--             devolvemos la funcion correspondiente al mismo tiempo que concatenamos lo consumido por el path s dentro de Scope a lo consumido por
+--             s fuera del Scope. Si no, devuelve Nothing
+--        caso Many [Routes f] : se tiene una lista de sub-resultados. si alguno matchea con s, tomo ese como resultado. Si no, devuelve Nothing
 
 eval :: Routes a -> String -> Maybe (a, PathContext)
 eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> Just (f,y)) =<< (matches (split '/' s) xs))
