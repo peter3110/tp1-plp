@@ -154,12 +154,14 @@ eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> Just (f,y)) =<< (matches (split '/
 -- Ejercicio 8: Similar a eval, pero aquí se espera que el handler sea una función que recibe como entrada el contexto 
 --              con las capturas, por lo que se devolverá el resultado de su aplicación, en caso de haber coincidencia.
 exec :: Routes (PathContext -> a) -> String -> Maybe a
-exec routes path = undefined
+exec routes path = (\px -> Just ((fst px) (snd px))) =<< (eval routes path)
 
 -- Ejercicio 9: Permite aplicar una funci ́on sobre el handler de una ruta. Esto, por ejemplo, podría permitir la ejecución 
 --              concatenada de dos o más handlers.
 wrap :: (a -> b) -> Routes a -> Routes b
-wrap f = undefined
+wrap f = foldRoutes (\xs g -> Route xs (f g))
+                    (\xs r -> Scope xs r)
+                    (\lr   -> Many lr)
 
 -- Ejercicio 10: Genera un Routes que captura todas las rutas, de cualquier longitud. A todos los patrones devuelven el mismo valor. 
 --               Las capturas usadas en los patrones se deberán llamar p0, p1, etc. 
