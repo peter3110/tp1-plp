@@ -85,11 +85,6 @@ rutasFacultad = many [
                         scope "detener/:causa" (route "castigo" "aplicar castigo ejemplar")],
                 route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]
 
-rutasFac      =  many [
-                  route "" "ver inicio",
-                  route "ayuda" "ver ayuda",
-                  route "alu/:lu/:edad/aprobadas" "ver materias aprobadas por alumno" ]
-
 
 -- Ejercicio 6: Genera todos los posibles paths para una ruta definida.
 paths :: Routes a -> [String]
@@ -104,52 +99,28 @@ Nota: la siguiente función viene definida en el módulo Data.Maybe.
  f =<< m = case m of Nothing -> Nothing; Just x -> f x
 -}
 
--- modificar px sy = modifica sy en funcion de px. Devuelve la porcion aun no consumida del string sy tras haber consumido 
---                   todo lo del pattern px posible 
---                   Si no se pudo consumir todo px, devuelve "". Y si no se puede consumir nada de px, devuelve sy.
---                   res es una lista de tuplas. Si el primer elemento de la tupla es "/" es porque en el pattern px
---                   se encontro un Literal no coincidente con su elemento correspondiente del string sy. Este va a ser el
---                   punto en el que querremos cortar al string sy y devolver el substring que nos queda. Es con este fin que
---                   aplicamos una funcion que procesa esta lista de tuplas y el string original sy, detecta (si es que lo hay)
---                   el punto en el que debe cortar el string sy, y devuelve el substring deseado.
---                   - (observacion: si modificar xs s == s, quiere decir que el pattern xs no nos
---                   permite consumir correctamente el string s --> el path a ser considerado -s- no matchea con el subpath propuesto -en
---                   este caso representado en forma de "pattern"- por xs). -
-unirConBarra :: [String] -> String
-unirConBarra = foldr (\x r -> if r=="" then x else x ++ "/" ++ r) ""
-
-modificar :: [PathPattern] -> String -> String
-modificar xs s = unirConBarra $ (foldr (\x r -> \ys -> if (fst x=="/") then ys else r (tail ys)) (\ys -> ys)) res (split '/' s)
-  where res = (zipWith (\px y -> case px of
-                Literal x -> if x/=y then ("/",y) else ("//",y)
-                Capture x -> (x,y)) xs listaS) where listaS = split '/' s
-
--- procesar px sy = los datos obtenidos del pattern px tras consumir lo maximo posible del string sy (que es un path).
---                  res es una lista de tuplas, y devolvemos ("/","/") cuando hay algun Literal de px que no se corresponde
---                  correctamente con su pareja correspondiente del string sy. Si esto sucede, entonces seguro que px no se corresponde
---                  con ningun prefijo del path sy, en cuyo caso no querremos agregar ningun dato que pudiera haber sido levantado 
---                  por sy de px y por eso devolvemos [].
---                  Si en cambio todos los Literales coinciden de forma exacta, devolvemos (para ser agregados al PathContext), todos los
---                  datos que se pueden levantar del path sy a partir de px.
-procesar :: [PathPattern] -> String -> PathContext
-procesar xs s = if elem ("/","/") res then [] else (foldr (\x r -> if x==("//","//") then r else x:r) []) res
-  where res = (zipWith (\px y -> case px of
-                Literal x -> if x/=y then ("/","/") else ("//","//")                -- pedimos x==y
-                Capture x -> (x,y)) xs listaS) where listaS = split '/' s           -- no pedimos nada
-
--- eval : caso Route [PathPattern] f : solo en caso de que el path considerado matchee exactamente con la ruta, devolemos la funcion 
---             f que corresponde a esa ruta (que es completa)
---        caso Scope [PathPattern] (Routes f) : si el path a ser considerado matchea con el subpath que propone Scope (sobre cierta Ruta),
---             devolvemos la funcion correspondiente al mismo tiempo que concatenamos lo consumido por el path s dentro de Scope a lo consumido por
---             s fuera del Scope. Si no, devuelve Nothing
---        caso Many [Routes f] : se tiene una lista de sub-resultados. si alguno matchea con s, tomo ese como resultado. Si no, devuelve Nothing
+-- eval : Primero, trabajamos con el path en su forma partida, para mayor prolijidad del codigo
+--        caso Route [PathPattern] f : solo en caso de que el path considerado (ss) alcance para consumir todo el [PathPattern] considerado (xs),
+--             (esto lo chequeamos con el matches ss xs) y si el path en consumido en su totalidad (null x), entonces devolvemos la funcion
+--             correspondiente a la evaluacion de dicho path.
+--        caso Scope [PathPattern] (Routes f) : primero se chequea que el path ss que nos pasan matchee con el [PathPattern] xs. Esto lo hacemos
+--             con "matches ss xs". Si esto sucede, nos fijamos si la porcion del path ss que no se pudo consumir con xs (en el codigo, la x),
+--             si esa porcion de string matchea con la ruta considerada dentro del Scope. Esto lo chequeamos con r (notar que 
+--             fr :: [String] -> Maybe (a, PathContext)). Si efectivamente, en la recursion se logra matchear lo que queda del string ss con 
+--             cierta ruta, devolvemos la funcion correspondiente al desarrollo de dicha ruta, y concatenamos al PathContext generado por 
+--             esa ruta al PathContext que habiamos obtenido al consumir el path ss que nos habian pasado. Esto lo hacemos con y++y', donde y es lo
+--             consumido por ss antes de entrar a Scope y y' lo consumido por ss ya dentro de la ruta del Scope. 
+--        caso Many [Routes f] : se tiene una lista de resultados, candidatos a matchear con el path que nos pasan. si alguno de estos 
+--             matchea con el path ss, tomamos ese como resultado. Si no matchea con ninguno, devuelve Nothing pues quiere decir que el path
+--             ss no se corresonde con ninguno de los resultados disponibles. Notar que fx :: String -> Maybe (a,PathContext)
 
 eval :: Routes a -> String -> Maybe (a, PathContext)
-eval = foldRoutes (\xs f  -> \s -> (\(x,y) -> Just (f,y)) =<< (matches (split '/' s) xs))
-                  (\xs r  -> \s -> (\(x,y) -> if modificar xs s == s then Nothing 
-                                              else Just (x,(procesar xs s)++y)) =<< r (modificar xs s))
-                  (\lr    -> \s -> (\recOk -> recOk s) =<< (foldr (\x r -> if isNothing (x s) then r else Just x) Nothing) lr)
+eval route s = eval' route (split '/' s)
 
+eval' :: Routes a -> [String] -> Maybe (a, PathContext)
+eval' = foldRoutes (\xs f  -> (\ss -> (\(x,y) -> if null x then Just (f,y) else Nothing) =<< (matches ss xs)))
+                   (\xs fr -> (\ss -> (\(x,y) -> (\(x',y') -> Just (x', y++y')) =<< (fr x)) =<< (matches ss xs)))
+                   (\lr    -> (\ss -> (foldr (\fx r -> if isNothing (fx ss) then r else (fx ss)) Nothing) lr))
 
 -- Ejercicio 8: Similar a eval, pero aquí se espera que el handler sea una función que recibe como entrada el contexto 
 --              con las capturas, por lo que se devolverá el resultado de su aplicación, en caso de haber coincidencia.
