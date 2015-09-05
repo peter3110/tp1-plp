@@ -10,8 +10,7 @@ data Routes f = Route [PathPattern] f | Scope [PathPattern] (Routes f) | Many [R
 -- Ejercicio 1: Dado un elemento separador y una lista, se debera partir la lista en sublistas de acuerdo a la aparicíon del separador (sin incluirlo).
 
 split :: Eq a => a -> [a] -> [[a]]
-split n = foldr (\x r -> if (n/=x) then (\yss -> (x:head yss):(tail yss)) r
-                                   else [[]] ++ r) [[]]
+split n = foldr (\x r -> if (n/=x) then (\yss -> (x:head yss):(tail yss)) r else [[]] ++ r) [[]]
 
 -- Ejercicio 2: A partir de una cadena que denota un patrón de URL se deberá construir la secuencia de literales y capturas correspondiente.
 
