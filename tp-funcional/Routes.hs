@@ -10,17 +10,17 @@ data Routes f = Route [PathPattern] f | Scope [PathPattern] (Routes f) | Many [R
 -- Ejercicio 1: Dado un elemento separador y una lista, se debera partir la lista en sublistas de acuerdo a la aparicíon del separador (sin incluirlo).
 
 split :: Eq a => a -> [a] -> [[a]]
-split n = foldr (\x r -> if (n/=x) then (\yss -> (x:head yss):(tail yss)) r else [[]] ++ r) [[]]
+split n xs = if length xs /= 0 then split' n xs else []
+
+split':: Eq a => a -> [a] -> [[a]]
+split' n = foldr (\x r -> if (x/=n) then (\yss -> (x:head yss):(tail yss)) r else [[]] ++ r) [[]]
 
 -- Ejercicio 2: A partir de una cadena que denota un patrón de URL se deberá construir la secuencia de literales y capturas correspondiente.
 
-limpiar :: Eq a => [[a]] -> [[a]]
-limpiar = foldr (\x r -> if x==[] then r else x:r) []
-
 pattern :: String -> [PathPattern]
-pattern path = if path == "" then [Literal ""] else
+pattern path = if path == "/" then [] else 
                (foldr (\x r -> if ((not (null x)) && (head x) == ':') then (Capture (tail x)):r 
-                               else (Literal x):r) []) (limpiar (split '/' path))
+               else (Literal x):r) []) ((split '/') path)
 
 -- Ejercicio 3: Obtiene el valor registrado en una captura determinada. Se puede suponer que la captura está definida en el contexto.
 type PathContext = [(String, String)]
@@ -75,19 +75,11 @@ patternShow ps = concat $ intersperse "/" ((map (\p -> case p of
   Capture s -> (':':s)
   )) ps)
 
-rutasFacultad = many [
-                route "" "ver inicio",
-                route "ayuda" "ver ayuda",
-                scope "materia/:nombre/alu/:lu" $ many [
-                        route "inscribir" "inscribe alumno", 
-                        route "aprobar/:nota"   "aprueba alumno",
-                        scope "detener/:causa" (route "castigo" "aplicar castigo ejemplar")],
-                route "alu/:lu/aprobadas" "ver materias aprobadas por alumno" ]
-
 
 -- Ejercicio 6: Genera todos los posibles paths para una ruta definida.
 paths :: Routes a -> [String]
-paths = foldRoutes (\xs f -> [patternShow xs]) (\xs r -> map (((patternShow xs)++"/")++) r) 
+paths = foldRoutes (\xs f -> [patternShow xs]) 
+                   (\xs r -> map (\x -> if x==[] then ((patternShow xs) ++ x) else (((patternShow xs) ++ "/") ++ x)) r) 
                    (\xs -> concat xs)
 
 -- Ejercicio 7: Evalúa un path con una definición de ruta y, en caso de haber coincidencia, obtiene el handler correspondiente 
@@ -138,3 +130,4 @@ wrap f = foldRoutes (\xs g -> Route xs (f g))
 --               En este punto se permite recursión explícita.
 catch_all :: a -> Routes a
 catch_all h = undefined
+

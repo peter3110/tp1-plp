@@ -16,7 +16,7 @@ rutasFacultad = many [
 rutasStringOps = route "concat/:a/:b" (\ctx -> (get "a" ctx) ++ (get "b" ctx))
 
 -- evaluar t para correr todos los tests
-t = runTestTT allTests
+--t = runTestTT allTests
 
 allTests = test [
 	"patterns" ~: testsPattern,
@@ -113,3 +113,14 @@ testsExecEntity = test [
 	Just "post#show" ~=? exec path5 "post/35",
 	Just "category#create of 7" ~=? exec path5 "category/7/create"
 	]
+
+
+main = do
+	runTestTT allTests
+
+
+
+
+
+
+
