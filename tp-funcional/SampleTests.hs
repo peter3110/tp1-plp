@@ -20,6 +20,7 @@ rutasStringOps = route "concat/:a/:b" (\ctx -> (get "a" ctx) ++ (get "b" ctx))
 
 allTests = test [
 	"patterns" ~: testsPattern,
+	"get" ~: testsGet,
 	"matches" ~: testsMatches,
 	"paths" ~: testsPaths,
 	"eval" ~: testsEval,
@@ -34,14 +35,31 @@ testsPattern = test [
   splitSlash "" ~=? [],
 	splitSlash "/" ~=? ["",""],
 	splitSlash "/foo" ~=? ["", "foo"],
+	splitSlash "foo/bar/plp/teorica/lambda" ~=? ["foo","bar","plp","teorica","lambda"],
+	splitSlash "bar/foo//tp1/tests/" ~=? ["bar","foo","","tp1","tests",""],
+	splitSlash "/bar/foo//tp1/tests" ~=? ["","bar","foo","","tp1","tests"],
+	splitSlash "default/:index/user/?=new/create/valid?" ~=? ["default",":index","user","?=new","create","valid?"],
 	pattern "" ~=? [],
 	pattern "/" ~=? [],
-	pattern "lit1/:cap1/:cap2/lit2/:cap3" ~=? [Literal "lit1", Capture "cap1", Capture "cap2", Literal "lit2", Capture "cap3"]
+	pattern "lit1/:cap1/:cap2/lit2/:cap3" ~=? [Literal "lit1", Capture "cap1", Capture "cap2", Literal "lit2", Capture "cap3"],
+	pattern "/alu/:lu/aprobadas" ~=? [Literal "alu", Capture "lu", Literal "aprobadas"],
+	pattern "/alu/:lu//aprobadas//" ~=? [Literal "alu", Capture "lu", Literal "aprobadas"],
+	pattern "foo/:bar/:plp/:dc/user/lambda" ~=?  [Literal "foo", Capture "bar", Capture "plp", Capture "dc", Literal "user", Literal "lambda"],
+	pattern "lit1" ~=? [Literal "lit1"],
+	pattern ":cap2" ~=? [Capture "cap2"]
 	]
 
+testsGet = test [
+	get "nombre" [("nombre","plp"),("lu","007-1")] ~=? "plp",
+	get "a" [("a","b"),("a","c")] ~=? "b"
+	]
 
 testsMatches = test [
-	Just (["tpf"],[("nombreMateria","plp")]) ~=? matches (splitSlash "materias/plp/tpf") (pattern "materias/:nombreMateria")
+	Just (["tpf"],[("nombreMateria","plp")]) ~=? matches (splitSlash "materias/plp/tpf") (pattern "materias/:nombreMateria"),
+	matches (splitSlash "materia/plp/alu/007-01") (pattern "materia/:nombre") ~=? Just (["alu","007-01"],[("nombre","plp")]),
+	matches (splitSlash "user/pepe/profile/v1") (pattern "user/:name/profile/:api") ~=? Just ([],[("name","pepe"),("api","v1")]),
+	matches [] [Literal "algo"] ~=? Nothing,
+	matches (splitSlash "alu/007-01") (pattern "alumno/materia/:lu") ~=? Nothing
 	]
 
 path0 = route "foo" 1
