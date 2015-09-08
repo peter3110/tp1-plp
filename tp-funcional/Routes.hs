@@ -18,9 +18,11 @@ split' n = foldr (\x r -> if (x/=n) then (\yss -> (x:head yss):(tail yss)) r els
 -- Ejercicio 2: A partir de una cadena que denota un patrón de URL se deberá construir la secuencia de literales y capturas correspondiente.
 
 pattern :: String -> [PathPattern]
-pattern path = if path == "/" then [] else 
-               (foldr (\x r -> if ((not (null x)) && (head x) == ':') then (Capture (tail x)):r 
-               else (Literal x):r) []) ((split '/') path)
+pattern xs = pattern' $ (foldr (\x r -> if x=="" then r else x:r) []) (split '/' xs)
+
+pattern' :: [String] -> [PathPattern]
+pattern' = (foldr (\x r -> if ((not (null x)) && (head x) == ':') then (Capture (tail x)):r 
+               else (Literal x):r) [])
 
 -- Ejercicio 3: Obtiene el valor registrado en una captura determinada. Se puede suponer que la captura está definida en el contexto.
 type PathContext = [(String, String)]
