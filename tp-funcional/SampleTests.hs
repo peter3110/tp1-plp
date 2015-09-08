@@ -26,7 +26,8 @@ allTests = test [
     "eval" ~: testsEval,
     "evalWrap" ~: testsEvalWrap,
     "evalCtxt"~: testsEvalCtxt,
-    "execEntity" ~: testsExecEntity
+    "execEntity" ~: testsExecEntity,
+    "exec" ~: testsExec
     ]
 
 splitSlash = split '/'
@@ -109,7 +110,13 @@ testsEval = test [
 path410 = wrap (+10) path4
 
 testsEvalWrap = test [
-        14 ~=? justEvalP410 "folder/lorem"
+        14 ~=? justEvalP410 "folder/lorem",
+        eval (wrap reverse (route "foo/:lu" "ver foo de alumno")) "foo/001" ~=? Just("onmula ed oof rev",[("lu","001")]),
+        eval (wrap (\f -> length f) (scope "materia/:nombre" (route "aprobada?" "la materia se aprobo?"))) "materia/plp/aprobada?" ~=? Just(length "la materia se aprobo?",[("nombre","plp")]),
+        eval (wrap reverse rutasFacultad) "ayuda" ~=?  Just("aduya rev",[]),
+        eval (wrap reverse (route "foo/:lu" "ver foo de alumno")) "foo/lu/001" ~=? Nothing,
+        eval (wrap (\f -> length f) (scope "materia/:nombre" (route "aprobada?" "la materia se aprobo?"))) "materia/plp/aprobada" ~=? Nothing,
+        eval (wrap reverse rutasFacultad) "ayuda/inscribir" ~=?  Nothing
     ]
     where justEvalP410 s = fst (fromJust (eval path410 s))
 
@@ -151,7 +158,15 @@ testsExecEntity = test [
     Just "post#show" ~=? exec path5 "post/35",
     Just "category#create of 7" ~=? exec path5 "category/7/create"
     ]
-
+    
+testsExec = test [
+    exec (route "foo/bar/:lu" length) "foo/bar/001" ~=? Just (1),
+    exec (scope "alu/:lu/materia/:nombre/:cuatri" (route "aprobada?" length) ) "alu/002/materia/plp/2c2015/aprobada?" ~=? Just(3),
+    exec (many [route "index" (\ctx -> 0) , scope "alumno" (many [route "foo" (\ctx -> 1) , route ":lu/bar" (\ctx -> 2) ])]) "alumno/foo" ~=? Just(1),
+    exec (route "foo/bar/:lu" length) "foo/bar/lu/001" ~=? Nothing,
+    exec (scope "alu/:lu/materia/:nombre/:cuatri" (route "aprobada?" length) ) "alu/002/materia/plp/2c2015" ~=? Nothing,
+    exec (many [route "index" (\ctx -> 0) , scope "alumno" (many [route "foo" (\ctx -> 1) , route ":lu/bar" (\ctx -> 2) ])]) "alumno/001/foo" ~=? Nothing    
+    ]
 
 main = do
     runTestTT allTests
