@@ -8,7 +8,10 @@ data PathPattern = Literal String | Capture String deriving (Eq, Show)
 data Routes f = Route [PathPattern] f | Scope [PathPattern] (Routes f) | Many [Routes f] deriving Show
 
 -- Ejercicio 1: Dado un elemento separador y una lista, se debera partir la lista en sublistas de acuerdo a la aparicíon del separador (sin incluirlo).
-
+--              Para contemplar el caso base que se nos pide, debemos devolver [] si nos pasan la lista vacia.
+--              Si la lista que nos pasan no es vacia, la recorremos y cada vez que aparece un elemento igual al que nos pasan, agrego la sublista que
+--              estaba generando en ese momento para la solucion final, y el resto de las sublistas las voy a agregar recursivamente a partir de la
+--              porcion de lista aun no recorrida.
 split :: Eq a => a -> [a] -> [[a]]
 split n xs = if length xs /= 0 then split' n xs else []
 
@@ -16,7 +19,9 @@ split':: Eq a => a -> [a] -> [[a]]
 split' n = foldr (\x r -> if (x/=n) then (\yss -> (x:head yss):(tail yss)) r else [[]] ++ r) [[]]
 
 -- Ejercicio 2: A partir de una cadena que denota un patrón de URL se deberá construir la secuencia de literales y capturas correspondiente.
-
+--              Como 'split' devuelve cadenas vacias cuando hay uso inadecuado de las barras "//", procesamos la particion del string a partir de 
+--              la barra para tener una lista de literales y/o capturas representados de forma aceptable. A partir de esta lista de strings no
+--              vacios podemos generar el [PathPattern] que se pide.
 pattern :: String -> [PathPattern]
 pattern xs = pattern' $ (foldr (\x r -> if x=="" then r else x:r) []) (split '/' xs)
 
@@ -25,24 +30,26 @@ pattern' = (foldr (\x r -> if ((not (null x)) && (head x) == ':') then (Capture 
                else (Literal x):r) [])
 
 -- Ejercicio 3: Obtiene el valor registrado en una captura determinada. Se puede suponer que la captura está definida en el contexto.
+--              A raiz de esta suposicion, sabemos que habra algun elemento del PathContext que se corresponda con el string que nos pasan.
+--              Luego, cuando encontramos ese string devolvemos a su pareja.
 type PathContext = [(String, String)]
 
 get :: String -> PathContext -> String
 get s = foldr (\(key,value) r -> if key==s then value else r) s
 
 -- Ejercicio 4: Dadas una ruta particionada y un patrón de URL, trata de aplicar el patrón a la ruta y devuelve, en caso de que
---              la ruta sea un prefijo válido para el patrón, el resto de la ruta que no se haya llegado a consumir y el contexto capturado hasta el punto alcanzado.
--- Se puede usar recursión explícita.
+--              la ruta sea un prefijo válido para el patrón, el resto de la ruta que no se haya llegado a consumir y el contexto capturado 
+--              hasta el punto alcanzado. Se puede usar recursión explícita.
 
--- unir : agrega adelante del resultado final del procesamiento de una ruta 
---        el resultado de haber procesado un elemento de la ruta
+-- unir : lo usamos para agregar adelante del PathContext resultante del procesamiento de una ruta 
+--        el resultado de haber procesado algun elemento de la misma. Lo utilizamos como funcion auxiliar de 'matches'
 unir :: PathContext -> Maybe ([String], PathContext) -> Maybe ([String], PathContext)
 unir pc Nothing = Nothing
 unir pc (Just (ss,xs)) = Just (ss,pc++xs)
 
 -- matches : asumimos que si el PathContext tiene pide mas informacion de la que la ruta
 --           nos puede brindar, devolvemos Nothing. A los literales y capturas los consumimos, y
---           solo que a las capturas ademas las procesamos y agregamos adelante en el resultado final.
+--           a las capturas ademas las procesamos y agregamos adelante en el resultado final, pues son los datos que debemos guardar.
 --           (Se permite usar recursion explicita)
 matches :: [String] -> [PathPattern] -> Maybe ([String], PathContext)
 matches ss [] = Just (ss, [])
@@ -79,6 +86,10 @@ patternShow ps = concat $ intersperse "/" ((map (\p -> case p of
 
 
 -- Ejercicio 6: Genera todos los posibles paths para una ruta definida.
+--              caso Route: devolvemos la unica ruta que se puede generar
+--              caso Scope: a cada ruta generada en la recursion  sobre la ruta que toma Scope como parametro, se le agrega adelante
+--                          el string patron que Scope considera
+--              caso Many: como son todos resultados independientes, la concatenacion de estos son todos los paths que se pueden generar
 paths :: Routes a -> [String]
 paths = foldRoutes (\xs f -> [patternShow xs]) 
                    (\xs r -> map (\x -> if x==[] then ((patternShow xs) ++ x) else (((patternShow xs) ++ "/") ++ x)) r) 
@@ -117,11 +128,14 @@ eval' = foldRoutes (\xs f  -> (\ss -> (\(x,y) -> if null x then Just (f,y) else 
 
 -- Ejercicio 8: Similar a eval, pero aquí se espera que el handler sea una función que recibe como entrada el contexto 
 --              con las capturas, por lo que se devolverá el resultado de su aplicación, en caso de haber coincidencia.
+--              Es evidente: si se obtiene una funcion al evaluar path, se aplica dicha funcion sobre el PathContext correspondiente 
+--              a la evaluacion de path.
 exec :: Routes (PathContext -> a) -> String -> Maybe a
 exec routes path = (\px -> Just ((fst px) (snd px))) =<< (eval routes path)
 
--- Ejercicio 9: Permite aplicar una funci ́on sobre el handler de una ruta. Esto, por ejemplo, podría permitir la ejecución 
+-- Ejercicio 9: Permite aplicar una funcion sobre el handler de una ruta. Esto, por ejemplo, podría permitir la ejecución 
 --              concatenada de dos o más handlers.
+--              No hace falta explicarlo
 wrap :: (a -> b) -> Routes a -> Routes b
 wrap f = foldRoutes (\xs g -> Route xs (f g))
                     (\xs r -> Scope xs r)
